@@ -1,1 +1,6 @@
-# ethnic_village_travel_bot
+# Ethnic Village Travel Bot
+
+### Run
+```
+fastapi dev main.py
+```

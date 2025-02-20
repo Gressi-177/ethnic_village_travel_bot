@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+langchain_openai
+python-dotenv
+langchain_community
+unstructured
+chromadb
+langchain_huggingface
+sentence-transformers
+ctransformers
+transformers
+torch
