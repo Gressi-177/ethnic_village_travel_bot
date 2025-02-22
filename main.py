@@ -47,8 +47,8 @@ async def startup_event():
     llm = CTransformers(
         model=model_file_path,
         model_type="llama",
-        max_new_tokens=128,
-        temperature=0.2
+        max_new_tokens=256,
+        temperature=0.01
     )
     llm_time = time.time() - start_time
     logger.info(f"LLM initialization completed in {llm_time:.2f} seconds")
@@ -97,7 +97,7 @@ async def get_answer(request: QuestionRequest):
 
         template = """
         <|im_start|>system
-        Sử dụng thông sau đây để tạo câu trả lời cho câu hỏi bên dưới và đừng để câu trả lời bị lặp lại.
+        Sử dụng thông sau đây để tạo câu trả lời cho câu hỏi bên dưới, chỉ lấy ra câu trả lời ngắn gọn cho câu hỏi và format lại câu cho đẹp.
         Thông tin: {context}
         <|im_end|>
         <|im_start|>user
@@ -107,7 +107,7 @@ async def get_answer(request: QuestionRequest):
 
         # Context search timing
         search_start = time.time()
-        results = ethnic_db.similarity_search_with_relevance_scores(fixed_question, k=2)
+        results = ethnic_db.similarity_search_with_relevance_scores(fixed_question, k=1)
         
         if(normalize_score(results[0][1], min_score, max_score) < threshold):
             return QuestionResponse(
@@ -147,9 +147,9 @@ async def get_answer(request: QuestionRequest):
             "total_processing_time": total_time
         }
         logger.info(f"Timing summary: {timing_summary}")
-
+        
         return QuestionResponse(
-            answer=answer.strip().split("<|im_end|>")[0],
+            answer=answer.strip().split("<|im_end|>")[0].split("<|im_start|>")[0],
             ethnic=ethnic,
             fixed_question=fixed_question
         )

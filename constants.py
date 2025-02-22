@@ -1,5 +1,5 @@
 model_file_path = "model/vinallama-7b-chat_q5_0.gguf"
-db_path = "data/chroma_"
+db_path = "data/chroma"
 
 threshold = 0.5
 min_score = -10
@@ -29,9 +29,9 @@ ETHNIC_MAP = {
     "Cơ Tu": [
         "co tu", "cotu", "cơt u", "cơ-tu", "cờ tu", "co tú", "cơ tù"
     ],
-    "Co": [
-        "co", "cô", "coo", "cò", "cỏ", "co ", "c ô"
-    ],
+    # "Co": [
+    #     "co", "cô", "coo", "cò", "cỏ", "co ", "c ô"
+    # ],
     "Cống": [
         "cong", "cóng", "cống ", "c ống", "công", "c0ng"
     ],
