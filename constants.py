@@ -1,5 +1,9 @@
 model_file_path = "model/vinallama-7b-chat_q5_0.gguf"
-db_path = "data/chroma"
+db_path = "data/chroma_"
+
+threshold = 0.5
+min_score = -10
+max_score = 0
 
 ETHNIC_MAP = {
     "Mường": [

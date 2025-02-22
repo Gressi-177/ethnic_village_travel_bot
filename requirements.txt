@@ -10,3 +10,4 @@ sentence-transformers
 ctransformers
 transformers
 torch
+#"fastapi[standard]"
