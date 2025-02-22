@@ -7,4 +7,4 @@ class QuestionRequest(BaseModel):
 class QuestionResponse(BaseModel):
     answer: str
     ethnic: str | None
-    fixed_question: str
+    fixed_question: str | None

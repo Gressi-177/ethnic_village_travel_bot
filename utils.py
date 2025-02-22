@@ -47,3 +47,6 @@ def get_ethnic_db(ethnic_name, base_embedding_function):
     )
 
     return temp_ethnic_db
+
+def normalize_score(score, min_score, max_score):
+    return (score - min_score) / (max_score - min_score)
