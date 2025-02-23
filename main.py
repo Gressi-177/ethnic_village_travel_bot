@@ -1,17 +1,17 @@
 from fastapi import FastAPI, HTTPException
 import os
 import time
-import math
 import logging
+import google.generativeai as genai
 from datetime import datetime
 from langchain_community.llms import CTransformers
 from langchain.embeddings import SentenceTransformerEmbeddings
 from fastapi.middleware.cors import CORSMiddleware
 from transformers import AutoTokenizer
 
-from constants import model_file_path, threshold, min_score, max_score
+from constants import model_file_path, threshold, min_score, max_score, API_KEY
 from models import QuestionRequest, QuestionResponse
-from utils import detect_ethnic_in_question, get_ethnic_db, normalize_score
+from utils import get_ethnic_db, normalize_score, detect_ethnic_in_question, correct_text, fix_question
 
 # Set up logging
 logging.basicConfig(
@@ -36,10 +36,9 @@ app.add_middleware(
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
-
 @app.on_event("startup")
 async def startup_event():
-    global llm, tokenizer, embedding_function
+    global llm, tokenizer, embedding_function, germini_model
 
     start_time = time.time()
     logger.info("Starting model initialization...")
@@ -57,6 +56,9 @@ async def startup_event():
     tokenizer = AutoTokenizer.from_pretrained("vilm/vinallama-7b-chat")
     tokenizer_time = time.time() - tokenizer_start
     logger.info(f"Tokenizer initialization completed in {tokenizer_time:.2f} seconds")
+    
+    genai.configure(api_key=API_KEY)
+    germini_model = genai.GenerativeModel("gemini-pro")
 
     embedding_start = time.time()
     embedding_function = SentenceTransformerEmbeddings(
@@ -69,7 +71,6 @@ async def startup_event():
     logger.info(f"Total initialization completed in {total_time:.2f} seconds")
 
 
-# API endpoint
 @app.post("/answer", response_model=QuestionResponse)
 async def get_answer(request: QuestionRequest):
     try:
@@ -77,16 +78,13 @@ async def get_answer(request: QuestionRequest):
         logger.info(f"Processing question: {request.question}")
 
         # Ethnic detection timing
-        ethnic_start = time.time()
-        ethnic, fixed_question = detect_ethnic_in_question(request.question)
-        ethnic_time = time.time() - ethnic_start
-        logger.info(f"Ethnic detection completed in {ethnic_time:.2f} seconds. Detected: {ethnic}")
+        fixed_question = fix_question(germini_model, request.question)
+        ethnic = detect_ethnic_in_question(fixed_question)
 
         if not ethnic:
             return QuestionResponse(
                 answer="Tôi không biết bạn đang muốn tìm hiểu về dân tộc nào. Hãy nêu đầy đủ câu hỏi với tên dân tộc.",
                 ethnic=ethnic,
-                fixed_question=fixed_question
             )
 
         # Database retrieval timing
@@ -101,19 +99,20 @@ async def get_answer(request: QuestionRequest):
         Thông tin: {context}
         <|im_end|>
         <|im_start|>user
-        {question}<|im_end|>
+        {ethnic}: {question}<|im_end|>
         <|im_start|>assistant
         """
-
+        
         # Context search timing
         search_start = time.time()
         results = ethnic_db.similarity_search_with_relevance_scores(fixed_question, k=1)
+        print(fixed_question, results)
         
-        if(normalize_score(results[0][1], min_score, max_score) < threshold):
+        if(len(results) == 0 or normalize_score(results[0][1], min_score, max_score) < threshold):
             return QuestionResponse(
                 answer="Không có câu trả lời cho câu hỏi của bạn!",
                 ethnic=ethnic,
-                fixed_question=fixed_question
+                fixed_question=request.question
             )
         
         merged_context = "\n\n".join([doc.page_content for doc, _ in results])
@@ -125,7 +124,7 @@ async def get_answer(request: QuestionRequest):
             merged_context = tokenizer.convert_tokens_to_string(tokens[-400:])
 
         # LLM inference timing
-        formatted_prompt = template.format(context=merged_context, question=request.question)
+        formatted_prompt = template.format(context=merged_context, question=fixed_question)
 
         inference_start = time.time()
         answer = llm(formatted_prompt)
@@ -138,9 +137,8 @@ async def get_answer(request: QuestionRequest):
         # Log timing summary
         timing_summary = {
             "timestamp": datetime.now().isoformat(),
-            "question": request.question,
+            "question": fixed_question,
             "ethnic": ethnic,
-            "ethnic_detection_time": ethnic_time,
             "database_init_time": db_time,
             "context_search_time": search_time,
             "llm_inference_time": inference_time,
@@ -151,7 +149,6 @@ async def get_answer(request: QuestionRequest):
         return QuestionResponse(
             answer=answer.strip().split("<|im_end|>")[0].split("<|im_start|>")[0],
             ethnic=ethnic,
-            fixed_question=fixed_question
         )
 
     except Exception as e:

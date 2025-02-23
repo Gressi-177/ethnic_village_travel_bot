@@ -5,6 +5,14 @@ threshold = 0.5
 min_score = -10
 max_score = 0
 
+API_KEY = "AIzaSyBNcRbg5tHhewhbv4QZMrqtkBVWtgRbBsc"
+
+ethnic_groups = [
+    "Kinh", "Tày", "Thái", "Mường", "Khơ Mú", "H'Mông", "Dao", "Ê Đê", 
+    "Ba Na", "Gia Rai", "Chăm", "Xơ Đăng", "Sán Chay", "Cơ Ho", "Ra Glai", 
+    "M'Nông", "Kháng", "Hoa", "Nùng", "Bru - Vân Kiều"
+]
+
 ETHNIC_MAP = {
     "Mường": [
         "muong", "mương", "mường", "muơng", "mươngg", "mườnng", "muongg",
