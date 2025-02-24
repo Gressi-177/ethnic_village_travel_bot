@@ -78,7 +78,7 @@ async def get_answer(request: QuestionRequest):
         logger.info(f"Processing question: {request.question}")
 
         # Ethnic detection timing
-        fixed_question = fix_question(germini_model, request.question)
+        fixed_question = fix_question(germini_model, request.question).strip()
         ethnic = detect_ethnic_in_question(fixed_question)
 
         if not ethnic:
@@ -95,33 +95,35 @@ async def get_answer(request: QuestionRequest):
 
         template = """
         <|im_start|>system
-        Sử dụng thông sau đây để tạo câu trả lời cho câu hỏi bên dưới, chỉ lấy ra câu trả lời ngắn gọn cho câu hỏi và format lại câu cho đẹp.
+        Bạn là một trợ lí AI hữu ích. Hãy sử dụng thông tin dưới đây để lấy ra câu trả lời ngắn gọn cho câu hỏi bên dưới mà không thêm bất kỳ kí tự nào.
+        Nếu không tìm thấy câu trả lời trong thông tin mà dạng câu so sánh thì bạn có thể tự trả lời,
+        còn nếu không phải thì trả lời: Không tìm thấy câu trả lời.
         Thông tin: {context}
         <|im_end|>
         <|im_start|>user
-        {ethnic}: {question}<|im_end|>
+        {question}<|im_end|>
         <|im_start|>assistant
         """
         
         # Context search timing
         search_start = time.time()
-        results = ethnic_db.similarity_search_with_relevance_scores(fixed_question, k=1)
-        print(fixed_question, results)
+        results = ethnic_db.similarity_search_with_relevance_scores(fixed_question, k=2)
+        print(type(fixed_question), fixed_question, results)
         
-        if(len(results) == 0 or normalize_score(results[0][1], min_score, max_score) < threshold):
-            return QuestionResponse(
-                answer="Không có câu trả lời cho câu hỏi của bạn!",
-                ethnic=ethnic,
-                fixed_question=request.question
-            )
+        # if(len(results) == 0 or normalize_score(results[0][1], min_score, max_score) < threshold):
+        #     return QuestionResponse(
+        #         answer="Không có câu trả lời cho câu hỏi của bạn!",
+        #         ethnic=ethnic,
+        #         fixed_question=request.question
+        #     )
         
         merged_context = "\n\n".join([doc.page_content for doc, _ in results])
         search_time = time.time() - search_start
         logger.info(f"Context search completed in {search_time:.2f} seconds")
         
-        tokens = tokenizer.tokenize(merged_context)
-        if len(merged_context) > 400:
-            merged_context = tokenizer.convert_tokens_to_string(tokens[-400:])
+        # tokens = tokenizer.tokenize(merged_context)
+        # if len(merged_context) > 400:
+        #     merged_context = tokenizer.convert_tokens_to_string(tokens[-400:])
 
         # LLM inference timing
         formatted_prompt = template.format(context=merged_context, question=fixed_question)

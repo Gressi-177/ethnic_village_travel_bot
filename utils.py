@@ -22,7 +22,7 @@ def fix_question(model, text):
     prompt = f"""
     Tôi có danh sách các dân tộc sau: {ethnic_list_str}. 
     Nếu câu hỏi dưới đây chứa tên dân tộc bị viết sai, hãy sửa lại chính xác theo danh sách trên.
-    Và chỉ cần đưa ra lại câu hỏi đúng mà không thêm bất kì từ nào.
+    Và chỉ cần đưa ra lại câu hỏi đúng mà không thêm bất kì kí tự nào.
     Câu hỏi:
     "{text}"
     """
