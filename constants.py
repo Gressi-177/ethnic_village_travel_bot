@@ -1,6 +1,7 @@
 # model_file_path = "model/vinallama-7b-chat_q5_0.gguf"
 model_file_path = "model/vinallama-2.7b-chat_q5_0.gguf"
 db_path = "data/chroma"
+data_path = "data"
 
 threshold = 0.5
 min_score = -10
