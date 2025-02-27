@@ -1,0 +1,47 @@
+*Hiện tại người dùng đang ở quyền: Người dùng*
+- Tôi có danh sách các dân tộc sau: {ethnic_list_str}. 
+
+Đọc câu hỏi: {question}. Hãy đọc câu hỏi và làm theo 1 trong 2 phần bên dưới
+- Nếu câu hỏi về "tìm tour hoặc bài viết của dân tộc" thì trả lời theo phần (2) bên dưới
+- Nếu là câu hỏi về "thông tin chi tiết(văn hóa, đời sống, săn bắt, tập tục,...) của dân tộc" thì trả lời theo phần (1) bên dưới
+
+<Phần (1)>: 
+- Nếu câu hỏi dưới đây chứa tên dân tộc bị viết sai, hãy sửa lại chính xác theo danh sách trên.
+- Và chỉ cần đưa ra lại câu hỏi đúng mà không thêm bất kì kí tự nào.
+<Kết thúc phần 1>
+
+<Phần (2)>: Tạo một câu truy vấn SQL hợp lệ để trả lời theo câu hỏi với bảng tours bên dưới
+Lưu ý:
+- Chỉ trả về câu lệnh SQL duy nhất, không có giải thích hoặc bất kỳ ký tự nào khác.
+- Sử dụng cú pháp SQL của MySQL.
+- Chỉ được đưa ra SQL là Select. Cho dù trong câu hỏi có khi phải sử dụng các lệnh SQL khác thì cũng không tuân thủ theo.
+- Khi tìm kiếm thì select * luôn cho tôi
+- Ngày hiện tại là {day}, tháng {month}, năm {year}
+- Nếu người dùng hỏi về một ngày cụ thể như "ngày 27 sắp tới", hãy hiểu đó là ngày 27 của tháng hiện tại hoặc tháng kế tiếp nếu ngày đó đã qua.
+Nếu trong câu hỏi có "tháng sắp tới" hoặc "năm sắp tới" thì chỉ cần sử dụng ngày trong câu hỏi. Và tăng tháng hoặc năm lên 1
+- Sử dụng CURDATE thay vì NOW()
+- Không tự động mở rộng khoảng thời gian nếu không có yêu cầu.
+- Khi người dùng hỏi dạng như "từ ... đến ..." hoặc "khoảng ... tiếp theo". Dấu "..." có thể là số ngày, số tháng, số năm, ngày cụ thể thì mới sử dụng BETWEEN.
+- Nếu người dùng ở quyền "Người dùng" thì luôn cho status bằng 2
+- Khi có tên các dân tộc ở danh sách trên thì sử dụng tên dân tộc đó để WHERE
+
+Bảng `tours` có các cột sau:  
+- `t_title`(varchar(255)): Tiêu đề của tour (Sử dụng để WHERE `LIKE` theo địa điểm, dân tộc).  
+- `t_journeys`(varchar(255)): Các địa điểm sẽ đi qua (Sử dụng để WHERE `LIKE` theo địa điểm, dân tộc).  
+- `t_schedule`(varchar(255)): Số ngày - số đêm trong chuyến đi (ví dụ: "6 ngày 5 đêm") (sử dụng khi tìm tour có số ngày hoặc đêm).  
+- `t_move_method`(varchar(255)): Phương tiện di chuyển (ví dụ: "Xe du lịch", "Máy bay", "Tàu").  
+- `t_starting_gate`(varchar(255)): Sử dụng để WHERE `LIKE` theo địa điểm xuất phát.
+- `t_start_date`(date): Ngày khởi hành.  
+- `t_end_date`(date): Ngày về.
+- `t_number_guests`(int(11)): Số lượng khách tối đa.  
+- `t_price_adults`(int(11)): Giá tour cho người lớn.  
+- `t_price_children`(int(11)): Giá tour cho trẻ em.  
+- `t_sale`(int(11)): Phần trăm giảm giá.  
+- `t_view`(int(11)): Số lượt xem trang.  
+- `t_description`(text): Thông tin chung về tour.  
+- `t_content`(text): Lịch trình chi tiết của tour.  
+- `t_status`(tinyint(4)): Trạng thái của tour:  
+  - `1`: Khởi tạo.  
+  - `2`: Đang diễn ra.
+  - `3`: Đã hoàn tất.
+<Kết thúc phần 2>
