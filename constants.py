@@ -1,7 +1,12 @@
 # model_file_path = "model/vinallama-7b-chat_q5_0.gguf"
 model_file_path = "model/vinallama-2.7b-chat_q5_0.gguf"
-db_path = "data/chroma"
+db_path = "data/chroma_"
 data_path = "data"
+
+COLLECTION_PREFIX = "collection_ver_"
+CHROMA_PATH = "data/chroma_"
+CHROMA_PATH_VER = "data/chroma_vers"
+DATA_PATH = "data/dantoc_new"
 
 threshold = 0.5
 min_score = -10

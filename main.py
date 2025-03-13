@@ -8,11 +8,12 @@ from langchain_community.llms import CTransformers
 from langchain.embeddings import SentenceTransformerEmbeddings
 from fastapi.middleware.cors import CORSMiddleware
 from transformers import AutoTokenizer
+import concurrent.futures
 
 from constants import model_file_path, threshold, min_score, max_score, API_KEY
-from models import QuestionRequest, QuestionResponse
-from utils import get_ethnic_db, detect_ethnic_in_question, format_tour_info, get_database_schema, generate_sql_query, \
-    execute_query, fix_question, normalize_score
+from models import QuestionRequest, QuestionResponse, DataUpdateRequest, DataUpdateResponse
+from utils import get_ethnic_db, detect_ethnic_in_question, format_tour_info, get_database_schema, generate_sql_query, execute_query, normalize_score
+from chroma_data_store import generate_data_store
 
 # Set up logging
 logging.basicConfig(
@@ -26,6 +27,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Ethnic QA API")
+executor = concurrent.futures.ThreadPoolExecutor()
 
 app.add_middleware(
     CORSMiddleware,
@@ -39,12 +41,10 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 @app.on_event("startup")
 async def startup_event():
-    global llm, tokenizer, embedding_function, db_schema, germini_model
+    global llm, tokenizer, embedding_function, germini_model
 
     start_time = time.time()
-
-    db_schema = get_database_schema()
-
+    
     logger.info("Starting model initialization...")
 
     llm = CTransformers(
@@ -140,9 +140,9 @@ def get_res_by_question(fixed_question, request_start):
     search_time = time.time() - search_start
     logger.info(f"Context search completed in {search_time:.2f} seconds")
 
-    # tokens = tokenizer.tokenize(merged_context)
-    # if len(merged_context) > 400:
-    #     merged_context = tokenizer.convert_tokens_to_string(tokens[-400:])
+    tokens = tokenizer.tokenize(merged_context)
+    if len(merged_context) > 400:
+        merged_context = tokenizer.convert_tokens_to_string(tokens[-400:])
 
     # LLM inference timing
     formatted_prompt = template.format(context=merged_context, question=fixed_question)
@@ -166,7 +166,7 @@ def get_res_by_question(fixed_question, request_start):
         "total_processing_time": total_time
     }
     logger.info(f"Timing summary: {timing_summary}")
-
+    
     return QuestionResponse(
         answer=answer.strip().split("<|im_end|>")[0].split("<|im_start|>")[0],
         ethnic=ethnic,
@@ -193,6 +193,18 @@ async def get_answer(request: QuestionRequest):
             return get_res_by_question(fixed_question, request_start)
 
 
+    except Exception as e:
+        logger.error(f"Error processing request: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/update_data", response_model=DataUpdateResponse)
+async def update_data(request: DataUpdateRequest):
+    try:
+        executor.submit(generate_data_store, request.file_name, request.data)
+        
+        return DataUpdateResponse(
+            status=True
+        )
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
