@@ -150,3 +150,9 @@ def create_new_versioned_collection(file_name: str, chunks: list[Document]):
 
     new_db.persist()
     print(f"Updated Chroma with collection '{new_collection_name}'.")
+    
+    #Xoá cache db ethnic
+    ethnic_persist_dir = f"./chroma_db_new/{file_name.split(".md")[0]}"
+    if os.path.exists(ethnic_persist_dir):
+        shutil.rmtree(ethnic_persist_dir)
+        print(f"Deleted old cache for {file_name}")
