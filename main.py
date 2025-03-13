@@ -11,7 +11,8 @@ from transformers import AutoTokenizer
 
 from constants import model_file_path, threshold, min_score, max_score, API_KEY
 from models import QuestionRequest, QuestionResponse
-from utils import get_ethnic_db, detect_ethnic_in_question, format_tour_info, get_database_schema, generate_sql_query, execute_query
+from utils import get_ethnic_db, detect_ethnic_in_question, format_tour_info, get_database_schema, generate_sql_query, \
+    execute_query, fix_question, normalize_score
 
 # Set up logging
 logging.basicConfig(
@@ -41,15 +42,15 @@ async def startup_event():
     global llm, tokenizer, embedding_function, db_schema, germini_model
 
     start_time = time.time()
-    
+
     db_schema = get_database_schema()
-    
+
     logger.info("Starting model initialization...")
 
     llm = CTransformers(
         model=model_file_path,
         model_type="llama",
-        max_new_tokens=256,
+        max_new_tokens=512,
         temperature=0.01
     )
     llm_time = time.time() - start_time
@@ -59,9 +60,9 @@ async def startup_event():
     tokenizer = AutoTokenizer.from_pretrained("vilm/vinallama-7b-chat")
     tokenizer_time = time.time() - tokenizer_start
     logger.info(f"Tokenizer initialization completed in {tokenizer_time:.2f} seconds")
-    
+
     genai.configure(api_key=API_KEY)
-    germini_model = genai.GenerativeModel("gemini-pro")
+    germini_model = genai.GenerativeModel("gemini-1.5-pro")
 
     embedding_start = time.time()
     embedding_function = SentenceTransformerEmbeddings(
@@ -72,18 +73,18 @@ async def startup_event():
 
     total_time = time.time() - start_time
     logger.info(f"Total initialization completed in {total_time:.2f} seconds")
-    
+
 @app.get("/get_sql", response_model=QuestionResponse)
 async def get_sql(question: str):
     model_req = generate_sql_query(germini_model, "/prompt.txt", question)
-    
+
     print(model_req)
-    
+
     if "SELECT" in model_req.upper():
         data = execute_query(model_req)
     else:
         data = model_req
-    
+
     return QuestionResponse(
         answer=model_req,
         ethnic = model_req
@@ -96,7 +97,7 @@ def get_res_by_data(data):
         answer=format_tour_info(data),
         ethnic=format_tour_info(data),
     )
-            
+
 def get_res_by_question(fixed_question, request_start):
     ethnic = detect_ethnic_in_question(fixed_question)
 
@@ -115,31 +116,30 @@ def get_res_by_question(fixed_question, request_start):
     template = """
     <|im_start|>system
     Bạn là một trợ lí AI hữu ích. Hãy sử dụng thông tin dưới đây để lấy ra câu trả lời ngắn gọn cho câu hỏi bên dưới mà không thêm bất kỳ kí tự nào.
-    Nếu không tìm thấy câu trả lời trong thông tin mà dạng câu so sánh thì bạn có thể tự trả lời,
-    còn nếu không phải thì trả lời: Không tìm thấy câu trả lời.
+    Nếu không tìm thấy câu trả lời trong thông tin thì trả lời: Không tìm thấy câu trả lời.
     Thông tin: {context}
     <|im_end|>
     <|im_start|>user
     {question}<|im_end|>
     <|im_start|>assistant
     """
-    
+
     # Context search timing
     search_start = time.time()
-    results = ethnic_db.similarity_search_with_relevance_scores(fixed_question, k=2)
+    results = ethnic_db.similarity_search_with_relevance_scores(fixed_question, k=1)
     print(type(fixed_question), fixed_question, results)
-    
-    # if(len(results) == 0 or normalize_score(results[0][1], min_score, max_score) < threshold):
-    #     return QuestionResponse(
-    #         answer="Không có câu trả lời cho câu hỏi của bạn!",
-    #         ethnic=ethnic,
-    #         fixed_question=request.question
-    #     )
-    
+
+    if len(results) == 0 or normalize_score(results[0][1], min_score, max_score) < threshold:
+        return QuestionResponse(
+            answer="Không có câu trả lời cho câu hỏi của bạn!",
+            ethnic=ethnic,
+            fixed_question=fixed_question
+        )
+
     merged_context = "\n\n".join([doc.page_content for doc, _ in results])
     search_time = time.time() - search_start
     logger.info(f"Context search completed in {search_time:.2f} seconds")
-    
+
     # tokens = tokenizer.tokenize(merged_context)
     # if len(merged_context) > 400:
     #     merged_context = tokenizer.convert_tokens_to_string(tokens[-400:])
@@ -166,7 +166,7 @@ def get_res_by_question(fixed_question, request_start):
         "total_processing_time": total_time
     }
     logger.info(f"Timing summary: {timing_summary}")
-    
+
     return QuestionResponse(
         answer=answer.strip().split("<|im_end|>")[0].split("<|im_start|>")[0],
         ethnic=ethnic,
@@ -180,15 +180,19 @@ async def get_answer(request: QuestionRequest):
 
         # Ethnic detection timing
         # fixed_question = fix_question(germini_model, request.question).strip()
+        # return get_res_by_question(fixed_question, request_start)
         model_res = generate_sql_query(germini_model, "/prompt.txt", request.question).strip()
-        
+        print(model_res)
+
         if "SELECT" in model_res.upper():
+            print("SELECT")
             data = execute_query(model_res)
             return get_res_by_data(data)
         else:
             fixed_question = model_res
             return get_res_by_question(fixed_question, request_start)
-            
+
+
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
