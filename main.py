@@ -8,10 +8,12 @@ from langchain_community.llms import CTransformers
 from langchain.embeddings import SentenceTransformerEmbeddings
 from fastapi.middleware.cors import CORSMiddleware
 from transformers import AutoTokenizer
+import concurrent.futures
 
 from constants import model_file_path, threshold, min_score, max_score, API_KEY
-from models import QuestionRequest, QuestionResponse
+from models import QuestionRequest, QuestionResponse, DataUpdateRequest, DataUpdateResponse
 from utils import get_ethnic_db, detect_ethnic_in_question, format_tour_info, get_database_schema, generate_sql_query, execute_query
+from chroma_data_store import generate_data_store
 
 # Set up logging
 logging.basicConfig(
@@ -25,6 +27,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Ethnic QA API")
+executor = concurrent.futures.ThreadPoolExecutor()
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,18 +41,16 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 @app.on_event("startup")
 async def startup_event():
-    global llm, tokenizer, embedding_function, db_schema, germini_model
+    global llm, tokenizer, embedding_function, germini_model
 
     start_time = time.time()
-    
-    db_schema = get_database_schema()
     
     logger.info("Starting model initialization...")
 
     llm = CTransformers(
         model=model_file_path,
         model_type="llama",
-        max_new_tokens=256,
+        max_new_tokens=1024,
         temperature=0.01
     )
     llm_time = time.time() - start_time
@@ -61,7 +62,7 @@ async def startup_event():
     logger.info(f"Tokenizer initialization completed in {tokenizer_time:.2f} seconds")
     
     genai.configure(api_key=API_KEY)
-    germini_model = genai.GenerativeModel("gemini-pro")
+    germini_model = genai.GenerativeModel("gemini-1.5-pro")
 
     embedding_start = time.time()
     embedding_function = SentenceTransformerEmbeddings(
@@ -115,8 +116,8 @@ def get_res_by_question(fixed_question, request_start):
     template = """
     <|im_start|>system
     Bạn là một trợ lí AI hữu ích. Hãy sử dụng thông tin dưới đây để lấy ra câu trả lời ngắn gọn cho câu hỏi bên dưới mà không thêm bất kỳ kí tự nào.
-    Nếu không tìm thấy câu trả lời trong thông tin mà dạng câu so sánh thì bạn có thể tự trả lời,
-    còn nếu không phải thì trả lời: Không tìm thấy câu trả lời.
+    Nếu không tìm thấy câu trả lời trong thông tin mà dạng câu so sánh thì bạn có thể tự trả lời.
+    Nếu vẫn không tìm thấy câu trả lời thì trả lời: Không tìm thấy câu trả lời.
     Thông tin: {context}
     <|im_end|>
     <|im_start|>user
@@ -127,48 +128,50 @@ def get_res_by_question(fixed_question, request_start):
     # Context search timing
     search_start = time.time()
     results = ethnic_db.similarity_search_with_relevance_scores(fixed_question, k=2)
-    print(type(fixed_question), fixed_question, results)
+    print(fixed_question, results)
     
-    # if(len(results) == 0 or normalize_score(results[0][1], min_score, max_score) < threshold):
+    # or normalize_score(results[0][1], min_score, max_score) < threshold
+    # if(len(results) == 0):
     #     return QuestionResponse(
     #         answer="Không có câu trả lời cho câu hỏi của bạn!",
     #         ethnic=ethnic,
-    #         fixed_question=request.question
+    #         fixed_question=fixed_question
     #     )
     
-    merged_context = "\n\n".join([doc.page_content for doc, _ in results])
-    search_time = time.time() - search_start
-    logger.info(f"Context search completed in {search_time:.2f} seconds")
+    # merged_context = "\n\n".join([doc.page_content for doc, _ in results])
+    # search_time = time.time() - search_start
+    # logger.info(f"Context search completed in {search_time:.2f} seconds")
     
-    # tokens = tokenizer.tokenize(merged_context)
-    # if len(merged_context) > 400:
-    #     merged_context = tokenizer.convert_tokens_to_string(tokens[-400:])
 
-    # LLM inference timing
-    formatted_prompt = template.format(context=merged_context, question=fixed_question)
+    # # LLM inference timing
+    # formatted_prompt = template.format(context=merged_context, question=fixed_question)
 
-    inference_start = time.time()
-    answer = llm(formatted_prompt)
-    inference_time = time.time() - inference_start
-    logger.info(f"LLM inference completed in {inference_time:.2f} seconds")
+    # inference_start = time.time()
+    # answer = llm(formatted_prompt)
+    # inference_time = time.time() - inference_start
+    # logger.info(f"LLM inference completed in {inference_time:.2f} seconds")
 
-    total_time = time.time() - request_start
-    logger.info(f"Total request processing completed in {total_time:.2f} seconds")
+    # total_time = time.time() - request_start
+    # logger.info(f"Total request processing completed in {total_time:.2f} seconds")
 
-    # Log timing summary
-    timing_summary = {
-        "timestamp": datetime.now().isoformat(),
-        "question": fixed_question,
-        "ethnic": ethnic,
-        "database_init_time": db_time,
-        "context_search_time": search_time,
-        "llm_inference_time": inference_time,
-        "total_processing_time": total_time
-    }
-    logger.info(f"Timing summary: {timing_summary}")
+    # # Log timing summary
+    # timing_summary = {
+    #     "timestamp": datetime.now().isoformat(),
+    #     "question": fixed_question,
+    #     "ethnic": ethnic,
+    #     "database_init_time": db_time,
+    #     "context_search_time": search_time,
+    #     "llm_inference_time": inference_time,
+    #     "total_processing_time": total_time
+    # }
+    # logger.info(f"Timing summary: {timing_summary}")
     
+    # return QuestionResponse(
+    #     answer=answer.strip().split("<|im_end|>")[0].split("<|im_start|>")[0],
+    #     ethnic=ethnic,
+    # )
     return QuestionResponse(
-        answer=answer.strip().split("<|im_end|>")[0].split("<|im_start|>")[0],
+        answer="",
         ethnic=ethnic,
     )
 
@@ -189,6 +192,18 @@ async def get_answer(request: QuestionRequest):
             fixed_question = model_res
             return get_res_by_question(fixed_question, request_start)
             
+    except Exception as e:
+        logger.error(f"Error processing request: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/update_data", response_model=DataUpdateResponse)
+async def update_data(request: DataUpdateRequest):
+    try:
+        executor.submit(generate_data_store, request.file_name, request.data)
+        
+        return DataUpdateResponse(
+            status=True
+        )
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

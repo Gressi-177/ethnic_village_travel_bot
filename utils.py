@@ -3,7 +3,8 @@ import re
 import unicodedata
 from datetime import datetime
 from langchain_community.vectorstores import Chroma
-from constants import data_path, db_path, ETHNIC_MAP
+from constants import data_path, db_path, COLLECTION_PREFIX
+from chroma_data_store import get_latest_version
 import mysql.connector
 
 ethnic_groups = [
@@ -36,6 +37,7 @@ def get_database_schema():
     return schema
 
 def execute_query(query):
+    print(query)
     conn = get_database_connection()
     cursor = conn.cursor()
     cursor.execute(query)
@@ -81,15 +83,20 @@ def detect_ethnic_in_question(question):
 
 def get_ethnic_db(ethnic_name, base_embedding_function):
     ethnic_persist_dir = f"./chroma_db_new/{ethnic_name}"
-    if os.path.exists(ethnic_persist_dir):
-        return Chroma(
-            persist_directory=ethnic_persist_dir,
-            embedding_function=base_embedding_function
-        )
+    # if os.path.exists(ethnic_persist_dir):
+    #     return Chroma(
+    #         persist_directory=ethnic_persist_dir,
+    #         embedding_function=base_embedding_function
+    #     )
 
     source = f"/content/dantoc_new/{ethnic_name}.md"
     base_db = Chroma(persist_directory=db_path, embedding_function=base_embedding_function)
-    results = base_db.get(where={"source": source})
+    existing_collections = base_db._client.list_collections()
+    latest_version = get_latest_version(existing_collections)
+    collection_name = f"{COLLECTION_PREFIX}{latest_version}"
+    latest_collection = base_db._client.get_or_create_collection(collection_name)
+    
+    results = latest_collection.get(where={"source": source})
 
     from langchain.schema import Document
     documents = [
