@@ -66,15 +66,6 @@ def remove_accents(text):
     text = "".join(c for c in text if unicodedata.category(c) != "Mn")
     return text.lower()
 
-# def detect_ethnic_in_question(question):
-#     normalized_question = remove_accents(question.lower())
-
-#     for key, variations in ETHNIC_MAP.items():
-#         for variant in variations:
-#             if variant in normalized_question:
-#                 return remove_accents(key).replace(" ", "_")
-#     return None
-
 def detect_ethnic_in_question(question):
     for key in ethnic_groups:
         if key in question:
@@ -83,11 +74,11 @@ def detect_ethnic_in_question(question):
 
 def get_ethnic_db(ethnic_name, base_embedding_function):
     ethnic_persist_dir = f"./chroma_db_new/{ethnic_name}"
-    # if os.path.exists(ethnic_persist_dir):
-    #     return Chroma(
-    #         persist_directory=ethnic_persist_dir,
-    #         embedding_function=base_embedding_function
-    #     )
+    if os.path.exists(ethnic_persist_dir):
+        return Chroma(
+            persist_directory=ethnic_persist_dir,
+            embedding_function=base_embedding_function
+        )
 
     source = f"/content/dantoc_new/{ethnic_name}.md"
     base_db = Chroma(persist_directory=db_path, embedding_function=base_embedding_function)
