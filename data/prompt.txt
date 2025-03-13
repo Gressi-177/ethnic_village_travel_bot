@@ -22,7 +22,7 @@ Nếu trong câu hỏi có "tháng sắp tới" hoặc "năm sắp tới" thì c
 - Sử dụng CURDATE thay vì NOW()
 - Không tự động mở rộng khoảng thời gian nếu không có yêu cầu.
 - Khi người dùng hỏi dạng như "từ ... đến ..." hoặc "khoảng ... tiếp theo". Dấu "..." có thể là số ngày, số tháng, số năm, ngày cụ thể thì mới sử dụng BETWEEN.
-- Nếu người dùng ở quyền "Người dùng" thì luôn cho status bằng 2
+- Nếu người dùng ở quyền "Người dùng" thì luôn cho status bằng 1
 - Khi có tên các dân tộc ở danh sách trên thì sử dụng tên dân tộc đó để WHERE
 
 Bảng `tours` có các cột sau:  
